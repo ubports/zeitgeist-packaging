@@ -1,0 +1,15 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@ --with python2,gir,autoreconf --parallel
+
+override_dh_auto_configure:
+	dh_auto_configure -- --enable-datahub \
+						 --enable-fts \
+						 --enable-telepathy
+
+override_dh_strip:
+	dh_strip --dbg-package=libzeitgeist-2.0-0-dbg
+
+override_dh_install:
+	dh_install -X".trig" -X".la" -X".pyc" -X".pyo" --fail-missing

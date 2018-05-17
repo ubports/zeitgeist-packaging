@@ -1,0 +1,9 @@
+fix_autocomplete.diff
+add_datahub_autostart_delay.patch
+disable-fts-on-touch.patch
+nodisplay_autostart.patch
+pre_populator.patch
+skip-failing-tests.patch
+fix-test-crash.patch
+startup-database-vacuum.patch
+thread-default-context.patch

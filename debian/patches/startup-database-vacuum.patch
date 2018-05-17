@@ -1,0 +1,214 @@
+Description: Use execute a VACUUM operation on activity DB on startups every 10 days
+Author: Marco Trevisan <marco.trevisan@canonical.com>
+Bug-Ubuntu: https://launchpad.net/bugs/919801
+Forwarded: http://irclogs.ubuntu.com/2016/02/24/#ubuntu-desktop.html#t10:44
+
+Index: b/src/Makefile.am
+===================================================================
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -1,6 +1,7 @@
+ NULL = 
+ 
+ bin_PROGRAMS = zeitgeist-daemon
++pkglibexec_PROGRAMS = zeitgeist-vacuum
+ noinst_LTLIBRARIES = libzeitgeist-engine.la
+ 
+ AM_CPPFLAGS = \
+@@ -33,6 +34,7 @@
+ 	libzeitgeist_engine_la_vala.stamp \
+ 	extensions_vala.stamp \
+ 	zeitgeist_daemon_vala.stamp \
++	zeitgeist_vacuum_vala.stamp \
+ 	$(NULL)
+ 
+ # Make sure every extension has only one vala file!
+@@ -72,6 +74,17 @@
+ zeitgeist_daemon_LDADD = $(builddir)/libzeitgeist-engine.la $(top_builddir)/libzeitgeist/libzeitgeist-2.0.la $(ZEITGEIST_LIBS)
+ zeitgeist_daemon_LDFLAGS = -export-dynamic -no-undefined
+ 
++zeitgeist_vacuum_VALASOURCES = \
++	zeitgeist-vacuum.vala \
++	$(NULL)
++
++nodist_zeitgeist_vacuum_SOURCES = \
++	$(zeitgeist_vacuum_VALASOURCES:.vala=.c) \
++	$(NULL)
++
++zeitgeist_vacuum_LDADD = $(top_builddir)/libzeitgeist/libzeitgeist-2.0.la $(ZEITGEIST_LIBS)
++zeitgeist_vacuum_LDFLAGS = -export-dynamic -no-undefined
++
+ libzeitgeist_engine_la_LIBADD = $(ZEITGEIST_LIBS)
+ libzeitgeist_engine_la_LDFLAGS = -avoid-version -non_shared -static
+ 
+@@ -101,15 +114,23 @@
+ 		$(filter %.vala %.c,$^)
+ 	$(AM_V_at)touch $@
+ 
++zeitgeist_vacuum_vala.stamp: $(zeitgeist_vacuum_VALASOURCES) Makefile
++	$(AM_V_VALA)$(VALAC) \
++		$(AM_VALAFLAGS) \
++		$(filter %.vala %.c,$^)
++	$(AM_V_at)touch $@
++
+ EXTRA_DIST = \
+ 	$(libzeitgeist_engine_la_VALASOURCES) \
+ 	$(zeitgeist_daemon_VALASOURCES) \
++	$(zeitgeist_vacuum_VALASOURCES) \
+ 	$(extensions_VALASOURCES) \
+ 	$(NULL)
+ 
+ CLEANFILES = \
+ 	$(nodist_libzeitgeist_engine_la_SOURCES) \
+ 	$(nodist_zeitgeist_daemon_SOURCES) \
++	$(nodist_zeitgeist_vacuum_SOURCES) \
+ 	zeitgeist-engine.vapi \
+ 	zeitgeist-engine.h \
+ 	$(NULL)
+Index: b/src/zeitgeist-vacuum.vala
+===================================================================
+--- /dev/null
++++ b/src/zeitgeist-vacuum.vala
+@@ -0,0 +1,56 @@
++/* zeitgeist-vacuum.vala
++ *
++ * Copyright © 2015 Marco Trevisan <marco.trevisan@canonical.com>
++ *
++ * This program is free software: you can redistribute it and/or modify
++ * it under the terms of the GNU Lesser General Public License as published by
++ * the Free Software Foundation, either version 2.1 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU Lesser General Public License
++ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
++ *
++ */
++
++using Zeitgeist;
++
++int main (string[] args)
++{
++    Sqlite.Database database;
++
++    if (Utils.using_in_memory_database ())
++    {
++        warning ("Using in-memory database, no VACUUM needed");
++    }
++
++    var db_path = Utils.get_database_file_path ();
++    debug (@"Opening database file at $db_path");
++
++    int rc = Sqlite.Database.open_v2 (db_path, out database, Sqlite.OPEN_READWRITE);
++
++    if (rc != Sqlite.OK)
++    {
++        warning ("Impossible to open database `%s': %s".printf (db_path, database.errmsg ()));
++        return rc;
++    }
++
++    print ("Performing VACUUM operation... ");
++    rc = database.exec ("VACUUM");
++
++    if (rc != Sqlite.OK)
++    {
++        print ("FAIL");
++        warning (database.errmsg ());
++        return rc;
++    }
++
++    print("OK\n");
++    return 0;
++}
++
++// vim:expandtab:ts=4:sw=4
+Index: b/data/Makefile.am
+===================================================================
+--- a/data/Makefile.am
++++ b/data/Makefile.am
+@@ -8,9 +8,15 @@
+ service_DATA = org.gnome.zeitgeist.service
+ 
+ org.gnome.zeitgeist.service: org.gnome.zeitgeist.service.in
+-	$(AM_V_GEN)sed -e s!\@prefix\@!$(prefix)! < $< > $@
++	$(AM_V_GEN)sed -e "s!\@prefix\@!$(prefix)!; s!\@pkglibexecdir\@!$(pkglibexecdir)!" < $< > $@
+ org.gnome.zeitgeist.service: Makefile
+ 
++pkglibexec_PROGRAMS = zeitgeist-maybe-vacuum
++
++zeitgeist-maybe-vacuum: zeitgeist-maybe-vacuum.in
++	$(AM_V_GEN)sed -e s!\@pkglibexecdir\@!$(pkglibexecdir)! < $< > $@
++zeitgeist-maybe-vacuum: Makefile
++
+ bashcompletiondir = $(datadir)/bash-completion/completions
+ dist_bashcompletion_DATA = completions/zeitgeist-daemon
+ 
+@@ -27,15 +33,17 @@
+ 	org.gnome.zeitgeist.service \
+ 	PythonSerializer.pyc \
+ 	zeitgeist-datahub.desktop \
++	zeitgeist-maybe-vacuum \
+ 	$(NULL)
+ 
+ EXTRA_DIST = \
+ 	org.gnome.zeitgeist.service.in \
+ 	ontology2code \
++	zeitgeist-maybe-vacuum.in \
+ 	$(xdgautostart_in_files) \
+ 	$(NULL)
+ 
+-all-local: org.gnome.zeitgeist.service
++all-local: org.gnome.zeitgeist.service zeitgeist-maybe-vacuum
+ 
+ clean:
+ 	rm -rf *.pyc *.~[0-9]~
+Index: b/data/zeitgeist-maybe-vacuum.in
+===================================================================
+--- /dev/null
++++ b/data/zeitgeist-maybe-vacuum.in
+@@ -0,0 +1,32 @@
++#!/bin/sh
++
++FREQUENCY=864000 # 10 days
++
++cache_dir="$HOME/.cache"
++
++if [ -n "$XDG_CACHE_HOME" ]; then
++  cache_dir="$XDG_CACHE_HOME"
++fi
++
++stamp_file="$cache_dir/zeitgeist-vacuum.stamp"
++timestamp=0
++
++if [ -f "$stamp_file" ]; then
++  timestamp="$(cat $stamp_file)"
++fi
++
++case $timestamp in
++  ''|*[!0-9]*) timestamp=0 ;;
++  *) ;;
++esac
++
++if [ $(($(date +%s) - $timestamp)) -lt $FREQUENCY ]; then
++  exit 0;
++fi
++
++if (@pkglibexecdir@/zeitgeist-vacuum); then
++  mkdir -p "$cache_dir"
++  date +%s > "$stamp_file"
++else
++  exit $?
++fi
+Index: b/data/org.gnome.zeitgeist.service.in
+===================================================================
+--- a/data/org.gnome.zeitgeist.service.in
++++ b/data/org.gnome.zeitgeist.service.in
+@@ -1,3 +1,3 @@
+ [D-BUS Service]
+ Name=org.gnome.zeitgeist.Engine
+-Exec=@prefix@/bin/zeitgeist-daemon
++Exec=/bin/sh -c "@pkglibexecdir@/zeitgeist-maybe-vacuum; @prefix@/bin/zeitgeist-daemon"

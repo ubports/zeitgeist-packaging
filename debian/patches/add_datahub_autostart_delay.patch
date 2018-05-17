@@ -1,0 +1,9 @@
+Index: b/data/zeitgeist-datahub.desktop.in
+===================================================================
+--- a/data/zeitgeist-datahub.desktop.in
++++ b/data/zeitgeist-datahub.desktop.in
+@@ -8,3 +8,4 @@
+ Type=Application
+ Categories=
+ GenericName=
++X-GNOME-Autostart-Delay=20

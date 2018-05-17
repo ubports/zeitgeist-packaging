@@ -1,0 +1,21 @@
+Description: Drop redundant FTS/xapian indexer on Ubuntu Touch.
+Author: Robert Bruce Park <robert.park@canonical.com>
+
+=== modified file 'src/extension-collection.vala'
+--- a/src/extension-collection.vala
++++ b/src/extension-collection.vala
+@@ -50,6 +50,14 @@
+                 disabled_extensions = disabled.split_set (",:;");
+             }
+
++            if (Environment.get_variable ("DESKTOP_SESSION") == null &&
++                Environment.get_variable ("UBUNTU_ENABLE_ZG_FTS") == null)
++            {
++                // disable the FTS extension for ubuntu-touch (hopefully this
++                // doesn't break ubuntu's derivatives)
++                disabled_extensions += "SearchEngine";
++            }
++
+             foreach (var func in builtins)
+             {
+                 ExtensionLoader builtin = new BuiltinExtension (func);

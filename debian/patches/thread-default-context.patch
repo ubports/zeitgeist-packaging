@@ -1,0 +1,14 @@
+diff --git a/libzeitgeist/log.vala b/libzeitgeist/log.vala
+index 100f0cc..20d3961 100644
+--- a/libzeitgeist/log.vala
++++ b/libzeitgeist/log.vala
+@@ -86,7 +86,8 @@ public class Log : QueuedProxyWrapper
+     public Log ()
+     {
+         monitors = new HashTable<Monitor, uint> (direct_hash, direct_equal);
+-        MainLoop mainloop = new MainLoop();
++        MainContext context = MainContext.get_thread_default();
++        MainLoop mainloop = new MainLoop(context);
+         allow_direct_read = Utils.log_may_read_directly ();
+ 
+         Bus.get_proxy.begin<RemoteLog> (BusType.SESSION, Utils.ENGINE_DBUS_NAME,

@@ -1,0 +1,8 @@
+usr/lib/*/zeitgeist-fts
+usr/lib/*/zeitgeist/
+usr/bin/zeitgeist-daemon
+usr/share/bash-completion/completions/zeitgeist-daemon
+usr/share/dbus-1/services/org.gnome.zeitgeist.service
+usr/share/dbus-1/services/org.gnome.zeitgeist.fts.service
+usr/share/man/man1/zeitgeist-daemon.1
+usr/share/zeitgeist/doc
